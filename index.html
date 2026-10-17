@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Naya's Neighborhood Adventure</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--ink:#1f2a44;--card:#fffbe8;--gold:#ffc83d}
+html,body{margin:0;height:100%;background:#9fd8f5;font-family:"Trebuchet MS",system-ui,sans-serif;overflow:hidden;color:var(--ink)}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+.ui{position:fixed;left:0;right:0;display:flex;justify-content:center;pointer-events:none}
+#top{top:calc(env(safe-area-inset-top,0px) + 8px);gap:8px;align-items:center}
+#bubble{top:calc(env(safe-area-inset-top,0px) + 56px)}
+.card{background:var(--card);border:3px solid var(--ink);border-radius:16px;padding:8px 14px;font-weight:700;pointer-events:auto}
+#txt{max-width:90%;font-size:clamp(16px,4.4vw,22px);text-align:center}
+#pad{bottom:calc(env(safe-area-inset-bottom,0px) + 12px);gap:8px;padding:0 8px}
+#pad button{pointer-events:auto;flex:1;max-width:110px;border:3px solid var(--ink);background:var(--card);border-radius:16px;padding:8px 2px;font:700 12px inherit;color:var(--ink);cursor:pointer}
+#pad button span{display:block;font-size:30px}
+#pad button.hint{animation:p .7s infinite alternate;background:var(--gold)}
+@keyframes p{to{transform:scale(1.1)}}
+#rep{pointer-events:auto;cursor:pointer;font-size:20px}
+#toast{top:42%;font-size:clamp(22px,7vw,40px);font-weight:900;color:#fff;-webkit-text-stroke:2px var(--ink);text-shadow:0 3px 0 var(--ink);opacity:0;transition:opacity .3s;text-align:center}
+.ov{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(31,42,68,.45);z-index:5}
+.ov[hidden]{display:none}
+.ov .card{max-width:340px;text-align:center;padding:18px}
+.ov h1{margin:0 0 6px;font-size:24px}
+.ov button{display:block;width:100%;margin:8px 0;padding:12px;border:3px solid var(--ink);border-radius:14px;font:800 17px inherit;color:#fff;cursor:pointer}
+.ov label{font-size:14px;display:block;margin-top:6px}
+.ov .card{max-height:88vh;overflow:auto}
+#rl{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px}
+#rl button{margin:0;padding:10px 4px;font-size:15px}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="ui" id="top"><div class="card" id="stars">⭐⭐⭐</div><div class="card" id="rep" title="Repeat">🔊 Repeat</div></div>
+<div class="ui" id="bubble"><div class="card" id="txt"></div></div>
+<div class="ui" id="toast"></div>
+<div class="ui" id="pad">
+<button data-b="left"><span>⬅️</span>Turn left</button>
+<button data-b="straight"><span>⬆️</span>Go straight</button>
+<button data-b="right"><span>➡️</span>Turn right</button>
+<button data-b="cross"><span>🚸</span>Cross</button></div>
+<div class="ov" id="menu"><div class="card"><h1>🏘️ Naya's Neighborhood</h1>
+<div>Listen to the voice. Press the right button. Watch the character move!</div>
+<div id="rl"></div>
+<label><input type="checkbox" id="hint" checked> Show text &amp; hints (Level 1)</label></div></div>
+<div class="ov" id="quiz" hidden><div class="card"><h1 id="qt">Where are you?</h1><div id="qo"></div></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const $=id=>document.getElementById(id),P=Math.PI;
+const ren=new THREE.WebGLRenderer({canvas:$('c'),antialias:true});ren.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x9fd8f5);scene.fog=new THREE.Fog(0x9fd8f5,35,80);
+const cam=new THREE.PerspectiveCamera(55,1,.1,150);
+function resize(){ren.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}
+addEventListener('resize',resize);resize();
+scene.add(new THREE.HemisphereLight(0xffffff,0x6fa86f,.95));
+const sun=new THREE.DirectionalLight(0xffffff,.6);sun.position.set(10,20,8);scene.add(sun);
+const mat=c=>new THREE.MeshLambertMaterial({color:c});
+function box(w,h,d,c,x,y,z){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(c));m.position.set(x,y,z);scene.add(m);return m}
+function label(t,x,y,z,s=1){const k=document.createElement('canvas');k.width=256;k.height=64;const g=k.getContext('2d');
+g.fillStyle='#fff';g.strokeStyle='#1f2a44';g.lineWidth=5;g.beginPath();g.roundRect(4,4,248,56,16);g.fill();g.stroke();
+g.fillStyle='#1f2a44';g.font='bold 28px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(t,128,34);
+const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(k),depthTest:false}));
+sp.position.set(x,y,z);sp.scale.set(4.4*s,1.1*s,1);scene.add(sp)}
+// ground & roads
+box(90,.2,90,0x8fd16a,0,-.1,0);
+[-3,3].forEach(x=>box(1.4,.04,44,0xe3dcc8,x,.015,0));
+box(4,.05,56,0x555b66,0,.02,0);box(56,.05,3,0x555b66,0,.025,0);box(56,.05,3,0x555b66,0,.025,14);
+for(let x=-26;x<=26;x+=2)box(1,.01,.15,0xffffff,x,.06,14);
+[[-3,0],[3,0],[-3,14],[3,14]].forEach(([x,z])=>{for(let i=-3;i<=3;i++)box(1.4,.01,.22,0xffffff,x,.07,z+i*.4)});
+[-9,4,11.8].forEach(z=>{for(let i=-3;i<=3;i++)box(.22,.01,1.4,0xffffff,i*.4,.07,z)});
+label('MELATI STREET',0,.6,-18,.9);label('KENANGA STREET',-13,.6,0,.9);label('KENANGA STREET',13,.6,0,.9);label('CEMPAKA LANE',-12,.6,14,.9);
+// buildings
+function bld(n,x,z,w,d,h,c,r){box(w,h,d,c,x,h/2,z);const m=new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*.75,1.5,4),mat(r));
+m.position.set(x,h+.75,z);m.rotation.y=P/4;scene.add(m);label(n,x,h+2.4,z)}
+bld('Post Office',-8,-14,5,4,2.5,0xffd9a0,0xe0653a);bld('Library',-9,-8,5,4,3,0x6fa8e8,0x2d5fb0);
+bld('SD Harapan',8.5,-8,6,6,5,0xf6e2a8,0xd9453a);
+bld('Bakery',-8,4,5,3,2.5,0xffb6c8,0xe0457a);bld("Naya's House",-8,7.5,5,3,2.5,0xffe45c,0xd9453a);bld('Mosque',-8,10.5,5,3,2.5,0xd9e8d0,0x2e8b57);
+bld('Grocery Store',8,4,5,3,2.5,0xd9f0d0,0x2e8b57);bld('House B',8,7.5,5,3,2.5,0xff9db8,0xd9304a);bld('Clinic',8,10.5,5,3,2.5,0xe8f4f4,0x2a9a9a);
+const dome=new THREE.Mesh(new THREE.SphereGeometry(1.1,16,10),mat(0x2e8b57));dome.position.set(-8,2.7,10.5);scene.add(dome);
+// pond & trees
+const pond=new THREE.Mesh(new THREE.CylinderGeometry(1,1,.1,32),mat(0x3fa7e8));pond.scale.set(6,1,3.4);pond.position.set(0,.06,19.8);scene.add(pond);label('Pond',0,2,19.8);
+[[-12,-3],[-6.5,-4.5],[-12.5,6],[-13,10],[13,3],[12.5,9],[6,-3.5],[13,-2],[7,-15],[-12,-12],[4.5,-15],[-4.5,-17],[-7,19],[8,20],[7,16.8],[-13,17],[13,15]].forEach(([x,z])=>{
+box(.4,1.2,.4,0x8a5a2b,x,.6,z);const s=new THREE.Mesh(new THREE.SphereGeometry(1.1,12,10),mat(0x3cb44b));s.position.set(x,2,z);scene.add(s)});
+// hero
+const hero=new THREE.Group();scene.add(hero);
+const shirt=mat(0xe53935);
+const body=new THREE.Mesh(new THREE.CylinderGeometry(.35,.4,.9,12),shirt);body.position.y=.95;hero.add(body);
+const headG=new THREE.Group();headG.position.y=1.7;hero.add(headG);
+const head=new THREE.Mesh(new THREE.SphereGeometry(.38,16,12),mat(0xffd2a6));headG.add(head);
+const nose=new THREE.Mesh(new THREE.SphereGeometry(.08,8,8),mat(0xe08060));nose.position.set(0,0,.38);headG.add(nose);
+const cap=new THREE.Mesh(new THREE.CylinderGeometry(.3,.4,.2,12),mat(0xffc83d));cap.position.y=.32;headG.add(cap);
+const legs=[-.18,.18].map(x=>{const g=new THREE.Group();g.position.set(x,.5,0);const l=new THREE.Mesh(new THREE.BoxGeometry(.22,.5,.25),mat(0x2b3a67));l.position.y=-.25;g.add(l);hero.add(g);return g});
+const ring=new THREE.Mesh(new THREE.RingGeometry(.5,.8,24),new THREE.MeshBasicMaterial({color:0xffc83d,side:2}));ring.rotation.x=-P/2;ring.position.y=.12;scene.add(ring);ring.visible=false;
+// routes
+const R={A:{c:0xe53935,s:[-3,-9],th:P/2,dest:'A',steps:[
+{say:'Start at the Library. Turn right.',b:'right',t:'turn',v:-P/2},
+{say:'Go straight to the corner of Melati Street and Kenanga Street.',b:'straight',t:'go',v:6.8,sign:'Melati Street'},
+{say:'Cross Kenanga Street.',b:'cross',t:'cross',v:4.4,sign:'Kenanga Street'},
+{say:'Go straight to the end of Melati Street.',b:'straight',t:'go',v:9.6,sign:'Melati Street'},
+{say:'Cross Cempaka Lane.',b:'cross',t:'cross',v:4.4,sign:'Cempaka Lane'},
+{say:'Turn left.',b:'left',t:'turn',v:P/2},
+{say:'Go straight to the end of the path.',b:'straight',t:'go',v:3}]},
+B:{c:0x1e6fd9,s:[3,-9],th:-P/2,dest:'B',steps:[
+{say:'Start at SD Harapan. Turn left.',b:'left',t:'turn',v:P/2},
+{say:'Go straight to the corner of Melati Street and Kenanga Street.',b:'straight',t:'go',v:6.8,sign:'Melati Street'},
+{say:'Cross Kenanga Street.',b:'cross',t:'cross',v:4.4,sign:'Kenanga Street'},
+{say:'Go straight. Stop next to the pink house.',b:'straight',t:'go',v:5.3},
+{say:'Turn left.',b:'left',t:'turn',v:P/2},
+{say:'Go straight to the door.',b:'straight',t:'go',v:2.5}]}};
+R.A.dest='pond';R.B.dest='houseB';
+const PL={pond:'The pond',houseB:'House B (the pink house)',clinic:'The clinic',library:'The library',post:'The post office',school:'SD Harapan',bakery:'The bakery',naya:"Naya's house",mosque:'The mosque',grocery:'The grocery store'};
+const L=s=>({say:s,b:'left',t:'turn',v:P/2}),Rt=s=>({say:s,b:'right',t:'turn',v:-P/2}),G=(s,v,sign)=>({say:s,b:'straight',t:'go',v,sign}),X=(s,v,sign)=>({say:s,b:'cross',t:'cross',v,sign});
+const COR='Go straight to the corner of Melati Street and Kenanga Street.',KEN='Cross Kenanga Street.',CEM='Cross Cempaka Lane.',MEL='Cross Melati Street.',END='Go straight to the end of Melati Street.',DOOR='Go straight to the door.';
+const add=(k,c,s,th,dest,steps)=>{R[k]={c,s,th,dest,steps}};
+add('C',0x2e9e4a,[-3,-14],P/2,'houseB',[Rt('Start at the Post Office. Turn right.'),G(COR,11.8,'Melati Street'),X(KEN,4.4,'Kenanga Street'),G('Go straight. Stop at the zebra crossing.',1.8),L('Turn left.'),X(MEL,6,'Melati Street'),Rt('Turn right.'),G('Go straight. Stop next to the pink house.',3.5),L('Turn left.'),G(DOOR,2.5)]);
+add('D',0x8e44ad,[-3,-9],P/2,'bakery',[Rt('Start at the Library. Turn right.'),G(COR,6.8,'Melati Street'),X(KEN,4.4,'Kenanga Street'),G('Go straight. Stop next to the Bakery.',1.8),Rt('Turn right.'),G(DOOR,2.5)]);
+add('E',0xe67e22,[3,-9],-P/2,'mosque',[X('Start at SD Harapan. Cross Melati Street.',6,'Melati Street'),L('Turn left.'),G(COR,6.8,'Melati Street'),X(KEN,4.4,'Kenanga Street'),G('Go straight. Stop next to the Mosque.',8.3),Rt('Turn right.'),G(DOOR,2.5)]);
+add('F',0x16a085,[-5.5,7.5],P/2,'library',[G("Start at Naya's House. Go straight to the street.",2.5),L('Turn left.'),G(COR,5.3,'Melati Street'),X(KEN,4.4,'Kenanga Street'),G('Go straight. Stop next to the Library.',5.8),L('Turn left.'),G(DOOR,3.5)]);
+add('G',0xc2185b,[0,16.2],-P/2,'naya',[G('Start at the pond. Go straight to the corner of Cempaka Lane.',3,'Cempaka Lane'),Rt('Turn right.'),X(CEM,4.4,'Cempaka Lane'),G("Go straight. Stop next to Naya's House.",4.3),L('Turn left.'),G(DOOR,2.5)]);
+add('H',0x5d4037,[-5.5,4],P/2,'grocery',[G('Start at the Bakery. Go straight to the street.',2.5),X(MEL,6,'Melati Street'),G('Go straight to the Grocery Store.',2.5)]);
+add('I',0x455a64,[5.5,10.5],-P/2,'post',[G('Start at the Clinic. Go straight to the street.',2.5),Rt('Turn right.'),G(COR,8.3,'Melati Street'),X(KEN,4.4,'Kenanga Street'),G('Go straight to the zebra crossing near the Library.',6.8),L('Turn left.'),X(MEL,6,'Melati Street'),Rt('Turn right.'),G('Go straight. Stop next to the Post Office.',5),L('Turn left.'),G(DOOR,2.5)]);
+add('J',0x558b2f,[-5.5,-14],P/2,'school',[G('Start at the Post Office. Go straight to the street.',2.5),Rt('Turn right.'),G('Go straight to the zebra crossing.',5),L('Turn left.'),X(MEL,6,'Melati Street'),G('Go straight to SD Harapan.',2.5)]);
+add('K',0x00838f,[0,16.2],P/2,'grocery',[G('Start at the pond. Go straight to the corner of Cempaka Lane.',3,'Cempaka Lane'),L('Turn left.'),X(CEM,4.4,'Cempaka Lane'),G('Go straight. Stop next to the Grocery Store.',7.8),Rt('Turn right.'),G(DOOR,2.5)]);
+add('L',0xd84315,[5.5,7.5],-P/2,'pond',[G('Start at House B. Go straight to the street.',2.5),L('Turn left.'),G('Go straight to the corner of Cempaka Lane.',4.3,'Cempaka Lane'),X(CEM,4.4,'Cempaka Lane'),Rt('Turn right.'),G('Go straight to the end of the path.',3)]);
+add('M',0x283593,[5.5,4],-P/2,'library',[G('Start at the Grocery Store. Go straight to the street.',2.5),Rt('Turn right.'),G(COR,1.8,'Melati Street'),X(KEN,4.4,'Kenanga Street'),G('Go straight to the zebra crossing near the Library.',6.8),L('Turn left.'),X(MEL,6,'Melati Street'),G('Go straight to the Library.',3.5)]);
+add('N',0x827717,[-6.5,-8],P/2,'clinic',[G('Start at the Library. Go straight to the street.',3.5),Rt('Turn right.'),G(COR,5.8,'Melati Street'),X(KEN,4.4,'Kenanga Street'),G(END,9.6,'Melati Street'),L('Turn left.'),X(MEL,6,'Melati Street'),G('Go straight to the Clinic.',2.5)]);
+Object.keys(R).forEach(k=>{const b=document.createElement('button');b.textContent='Route '+k;b.style.background='#'+R[k].c.toString(16).padStart(6,'0');b.onclick=()=>start(k);$('rl').appendChild(b)});
+// state
+let route,si=0,state='menu',act=null,th=0,mist=0,reps=0,bob=0,hint=true,tt=0;
+const pos=new THREE.Vector3(),last=new THREE.Vector3(),look=new THREE.Vector3(),trail=[];
+const dg=new THREE.BoxGeometry(.32,.03,.32);
+function speak(t,r=.8){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='en-US';u.rate=r;speechSynthesis.speak(u)}catch(e){}}
+function toast(t){const e=$('toast');e.textContent=t;e.style.opacity=1;clearTimeout(e.t);e.t=setTimeout(()=>e.style.opacity=0,1500)}
+function starsN(){return Math.max(1,3-Math.floor((mist+reps)/2))}
+function showStars(){$('stars').textContent='⭐'.repeat(starsN())+'☆'.repeat(3-starsN())}
+function dot(){const m=new THREE.Mesh(dg,mat(route.c));m.position.set(pos.x,.1,pos.z);scene.add(m);trail.push(m);last.copy(pos)}
+function start(k){route=R[k];trail.forEach(m=>scene.remove(m));trail.length=0;hint=$('hint').checked;
+pos.set(route.s[0],0,route.s[1]);th=route.th;si=0;mist=reps=0;shirt.color.setHex(route.c);showStars();
+$('menu').hidden=true;$('quiz').hidden=true;snapCam();say()}
+function say(){const s=route.steps[si];state='wait';$('txt').textContent=hint?s.say:'🎧 Listen…';speak(s.say);
+document.querySelectorAll('#pad button').forEach(b=>b.classList.toggle('hint',hint&&b.dataset.b===s.b));
+if(hint&&s.t=='go'){const sn=Math.sin(th),cs=Math.cos(th);ring.position.set(pos.x+sn*s.v,.12,pos.z+cs*s.v);ring.visible=true}else ring.visible=false}
+function press(b){if(state!='wait')return;const s=route.steps[si];
+if(b!=s.b){mist++;showStars();state='oops';toast('Oops! Listen again.');speak('Oops! Listen again.');setTimeout(say,2000);return}
+state='move';ring.visible=false;act={t:s.t,v:s.v,d:0,tt:0,tgt:th+(s.t=='turn'?s.v:0)};if(s.sign)toast(s.sign);
+document.querySelectorAll('#pad button').forEach(x=>x.classList.remove('hint'));if(s.t!='turn')dot()}
+document.querySelectorAll('#pad button').forEach(b=>b.onclick=()=>press(b.dataset.b));
+$('rep').onclick=()=>{if(state=='wait'){reps++;showStars();speak(route.steps[si].say,.65)}};
+function done(){state='next';toast('✅');si++;setTimeout(()=>si<route.steps.length?say():ask(),700)}
+function ask(){state='ask';$('txt').textContent='Where are you?';speak('Where are you?');$('qt').textContent='Where are you?';
+const o=Object.keys(PL).filter(k=>k!=route.dest).sort(()=>Math.random()-.5).slice(0,3).concat(route.dest).sort(()=>Math.random()-.5).map(k=>[PL[k],k]);
+$('qo').innerHTML='';o.forEach(([t,k])=>{const b=document.createElement('button');b.textContent=t;b.style.background='#7a5af8';
+b.onclick=()=>{if(k==route.dest){const n=starsN();$('qt').textContent='🎉 The destination is '+t.split(' (')[0].toLowerCase()+'!';
+$('qo').innerHTML='<div style="font-size:30px">'+'⭐'.repeat(n)+'</div>';speak('Great job! The destination is '+t.split(' (')[0]+'.');
+const a=document.createElement('button');a.textContent='Play again';a.style.background='#2e8b57';a.onclick=()=>{$('quiz').hidden=true;$('menu').hidden=false;state='menu'};$('qo').appendChild(a)}
+else{mist++;showStars();b.style.opacity=.35;speak('Oops! Try again.')}};$('qo').appendChild(b)});$('quiz').hidden=false}
+function snapCam(){const d=new THREE.Vector3(Math.sin(th),0,Math.cos(th));cam.position.copy(pos).addScaledVector(d,-7).add(new THREE.Vector3(0,6,0));look.copy(pos).addScaledVector(d,2)}
+// loop
+const clk=new THREE.Clock();
+function loop(){requestAnimationFrame(loop);const dt=Math.min(clk.getDelta(),.05);tt+=dt;let walking=false;
+if(state=='move'){const a=act;
+if(a.t=='turn'){const df=a.tgt-th,st=Math.sign(df)*2.2*dt;if(Math.abs(df)<=Math.abs(st)){th=a.tgt;done()}else th+=st}
+else{a.tt+=dt;if(a.t=='cross'&&a.tt<1.4)headG.rotation.y=Math.sin(a.tt*4.5)*.9;
+else{headG.rotation.y=0;walking=true;const st=Math.min(3.4*dt,a.v-a.d);pos.x+=Math.sin(th)*st;pos.z+=Math.cos(th)*st;a.d+=st;bob+=dt*12;
+if(pos.distanceTo(last)>.3)dot();if(a.d>=a.v-1e-6){dot();done()}}}}
+legs[0].rotation.x=walking?Math.sin(bob)*.7:0;legs[1].rotation.x=walking?-Math.sin(bob)*.7:0;
+hero.position.copy(pos);hero.position.y=walking?Math.abs(Math.sin(bob))*.06:0;hero.rotation.y=th;
+ring.scale.setScalar(1+Math.sin(tt*6)*.15);
+if(state=='menu'){const a=tt*.15;cam.position.set(Math.sin(a)*26,16,5+Math.cos(a)*26);look.set(0,0,5)}
+else{const d=new THREE.Vector3(Math.sin(th),0,Math.cos(th)),k=1-Math.pow(.03,dt);
+cam.position.lerp(pos.clone().addScaledVector(d,-7).add(new THREE.Vector3(0,6,0)),k);look.lerp(pos.clone().addScaledVector(d,2),k)}
+cam.lookAt(look);ren.render(scene,cam)}
+cam.position.set(0,16,30);loop();
+</script></body></html>
